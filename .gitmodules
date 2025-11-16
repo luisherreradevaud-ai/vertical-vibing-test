@@ -1,0 +1,6 @@
+[submodule "repos/backend"]
+	path = repos/backend
+	url = https://github.com/luisherreradevaud-ai/vertical-vibing-test-backend
+[submodule "repos/frontend"]
+	path = repos/frontend
+	url = https://github.com/luisherreradevaud-ai/vertical-vibing-test-frontend
