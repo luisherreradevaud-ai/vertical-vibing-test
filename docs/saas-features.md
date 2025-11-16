@@ -1,247 +1,469 @@
-# SaaS Features Roadmap
 
-## Phase 1: User Authentication & Authorization
 
-### 1.1 User Registration
-- **Endpoint**: `POST /api/auth/register`
-- **Features**:
-  - Email + password registration
-  - Email validation (Zod)
-  - Password hashing (bcrypt)
-  - Automatic email verification token generation
-  - Return JWT token on successful registration
+Admin side
 
-### 1.2 User Login
-- **Endpoint**: `POST /api/auth/login`
-- **Features**:
-  - Email + password authentication
-  - JWT token generation
-  - Refresh token support
-  - Login rate limiting
+Superadmin users (vendorsify) create, update and delete Views.
+Superadmin users (vendorsify) create, update and delete Modules.
+Superadmin users (vendorsify) create, update and delete relations Module/Views
+Superadmin users (vendorsify) create, update and delete relations Modules to Companies.
+Superadmin users (vendorsify) create, update and delete Features.
 
-### 1.3 User Profile
-- **Endpoint**: `GET /api/users/me` (authenticated)
-- **Endpoint**: `PATCH /api/users/me` (authenticated)
-- **Features**:
-  - View user profile
-  - Update profile (name, email)
-  - Change password
 
-### 1.4 Frontend Pages
-- `/login` - Login page
-- `/register` - Registration page
-- `/dashboard` - User dashboard (protected route)
-- `/profile` - User profile page (protected route)
 
----
+Client side
 
-## Phase 2: Subscription & Billing
+Admin users (client) create, update and delete User Levels.
+Admin users (client) create, update and delete relations User Levels to Features.
+Admin users (client) create, update and delete relations User Levels to Views.
+Admin users (client) create, update and delete relations User to User Levels.
 
-### 2.1 Subscription Plans
-- **Endpoint**: `GET /api/plans`
-- **Features**:
-  - List available plans (Free, Pro, Enterprise)
-  - Plan details (price, features, limits)
 
-### 2.2 User Subscriptions
-- **Endpoint**: `GET /api/subscriptions/me` (authenticated)
-- **Endpoint**: `POST /api/subscriptions` (authenticated)
-- **Endpoint**: `PATCH /api/subscriptions/:id/cancel` (authenticated)
-- **Features**:
-  - View current subscription
-  - Subscribe to a plan
-  - Cancel subscription
-  - Upgrade/downgrade plans
 
-### 2.3 Frontend Pages
-- `/pricing` - Pricing page with plans
-- `/dashboard/subscription` - Manage subscription
 
----
 
-## Phase 3: Team Management
 
-### 3.1 Organizations/Teams
-- **Endpoint**: `POST /api/organizations` (authenticated)
-- **Endpoint**: `GET /api/organizations` (authenticated)
-- **Endpoint**: `GET /api/organizations/:id` (authenticated)
-- **Endpoint**: `PATCH /api/organizations/:id` (authenticated)
-- **Endpoint**: `DELETE /api/organizations/:id` (authenticated)
-- **Features**:
-  - Create organization
-  - List user's organizations
-  - Update organization details
-  - Delete organization
 
-### 3.2 Team Members
-- **Endpoint**: `POST /api/organizations/:id/members` (authenticated)
-- **Endpoint**: `GET /api/organizations/:id/members` (authenticated)
-- **Endpoint**: `DELETE /api/organizations/:id/members/:userId` (authenticated)
-- **Features**:
-  - Invite team members by email
-  - List team members
-  - Remove team members
-  - Role-based permissions (Owner, Admin, Member)
 
-### 3.3 Frontend Pages
-- `/dashboard/team` - Team management page
-- `/dashboard/team/invite` - Invite members page
+Use case 1: create a Module called Risks and assign only this Module to a Company that only bought that service. Render only Risks tab on menus.
 
----
+Use case 2: create a User Level called Visitor that can access to every View but have restricted features: no creation, no deletion, only editing.
 
-## Phase 4: Usage Tracking & Analytics
 
-### 4.1 Usage Metrics
-- **Endpoint**: `GET /api/usage/me` (authenticated)
-- **Features**:
-  - Track API calls per user/organization
-  - Track feature usage
-  - Usage limits based on plan
 
-### 4.2 Analytics Dashboard
-- **Endpoint**: `GET /api/analytics/summary` (authenticated)
-- **Features**:
-  - Daily/weekly/monthly usage stats
-  - Growth metrics
-  - User engagement metrics
+-- =========================================
+-- Tipos ENUM
+-- =========================================
+CREATE TYPE permission_state AS ENUM ('allow','deny','inherit');
+CREATE TYPE action_scope     AS ENUM ('any','own','team','company');
 
-### 4.3 Frontend Pages
-- `/dashboard/analytics` - Analytics dashboard
-- `/dashboard/usage` - Usage metrics page
+-- =========================================
+-- Multi-tenant core
+-- =========================================
 
----
+CREATE TABLE companies (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-## Phase 5: API Keys & Webhooks
+CREATE TABLE users (
+  id            TEXT PRIMARY KEY,
+  email         TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  first_name    TEXT,
+  last_name     TEXT,
+  company_id    TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  state         TEXT DEFAULT 'active',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-### 5.1 API Keys
-- **Endpoint**: `POST /api/api-keys` (authenticated)
-- **Endpoint**: `GET /api/api-keys` (authenticated)
-- **Endpoint**: `DELETE /api/api-keys/:id` (authenticated)
-- **Features**:
-  - Generate API keys
-  - List API keys
-  - Revoke API keys
-  - API key scopes/permissions
+-- =========================================
+-- Product
+-- =========================================
 
-### 5.2 Webhooks
-- **Endpoint**: `POST /api/webhooks` (authenticated)
-- **Endpoint**: `GET /api/webhooks` (authenticated)
-- **Endpoint**: `DELETE /api/webhooks/:id` (authenticated)
-- **Features**:
-  - Register webhook URLs
-  - List webhooks
-  - Delete webhooks
-  - Webhook event types
+CREATE TABLE modules (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  code       TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-### 5.3 Frontend Pages
-- `/dashboard/api-keys` - API key management
-- `/dashboard/webhooks` - Webhook management
+CREATE TABLE views (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  url        TEXT NOT NULL UNIQUE,       -- ruta interna
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
----
+CREATE TABLE features (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,              -- INDEX lógico
+  key        TEXT UNIQUE,                -- opcional: clave estable (p.ej. "risks.edit")
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-## Implementation Priority
+-- Explicit relation Feature <-> View (N:M)
+CREATE TABLE features2_views (
+  feature_id TEXT NOT NULL REFERENCES features(id) ON DELETE CASCADE,
+  view_id    TEXT NOT NULL REFERENCES views(id)    ON DELETE CASCADE,
+  PRIMARY KEY (feature_id, view_id)
+);
 
-**Immediate (MVP)**:
-1. User Registration & Login (Phase 1.1, 1.2)
-2. User Profile (Phase 1.3)
-3. Basic Dashboard
+-- Modules -> Views (N:M)
+CREATE TABLE modules2_views (
+  module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+  view_id   TEXT NOT NULL REFERENCES views(id)   ON DELETE CASCADE,
+  PRIMARY KEY (module_id, view_id)
+);
 
-**Short-term (Launch)**:
-4. Subscription Plans (Phase 2.1, 2.2)
-5. Organization Management (Phase 3.1)
-6. Team Members (Phase 3.2)
+-- Companies -> Modules (N:M)
+CREATE TABLE companies2_modules (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  module_id  TEXT NOT NULL REFERENCES modules(id)   ON DELETE CASCADE,
+  PRIMARY KEY (company_id, module_id)
+);
 
-**Medium-term (Growth)**:
-7. Usage Tracking (Phase 4.1)
-8. Analytics Dashboard (Phase 4.2)
+-- (Opcional) Módulos -> Features (N:M) para ocultar acciones de módulos no comprados
+CREATE TABLE modules2_features (
+  module_id  TEXT NOT NULL REFERENCES modules(id)  ON DELETE CASCADE,
+  feature_id TEXT NOT NULL REFERENCES features(id) ON DELETE CASCADE,
+  PRIMARY KEY (module_id, feature_id)
+);
 
-**Long-term (Scale)**:
-9. API Keys (Phase 5.1)
-10. Webhooks (Phase 5.2)
 
----
 
-## Technical Stack
 
-### Backend
-- **Framework**: Express.js
-- **Database**: PostgreSQL (Drizzle ORM)
-- **Authentication**: JWT (jsonwebtoken)
-- **Password Hashing**: bcrypt
-- **Validation**: Zod
-- **Email**: (TBD - SendGrid, Resend, or similar)
+-- =========================================
+-- Menú (by tenant) + entrypoint
+-- =========================================
+CREATE TABLE menu_items (
+  id             TEXT PRIMARY KEY,
+  company_id     TEXT REFERENCES companies(id) ON DELETE CASCADE, -- null = global
+  label          TEXT NOT NULL,
+  sequence_index INT  NOT NULL DEFAULT 0,
+  view_id        TEXT REFERENCES views(id) ON DELETE SET NULL,
+  feature_id     TEXT REFERENCES features(id) ON DELETE SET NULL,
+  is_entrypoint  BOOLEAN NOT NULL DEFAULT TRUE,
+  icon           TEXT,                                            -- opcional
+  UNIQUE (company_id, label)
+);
 
-### Frontend
-- **Framework**: Next.js 14+ (App Router)
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Forms**: React Hook Form + Zod
-- **API Client**: Fetch API
+CREATE INDEX menu_items_company_seq_idx ON menu_items(company_id, sequence_index);
 
-### Shared
-- **Types**: @vertical-vibing/shared-types
-- **Validation Schemas**: Zod (shared between FE/BE)
+CREATE TABLE sub_menu_items (
+  id             TEXT PRIMARY KEY,
+  company_id     TEXT REFERENCES companies(id) ON DELETE CASCADE, -- null = global
+  menu_item_id   TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+  label          TEXT NOT NULL,
+  sequence_index INT  NOT NULL DEFAULT 0,
+  view_id        TEXT REFERENCES views(id) ON DELETE SET NULL,
+  feature_id     TEXT REFERENCES features(id) ON DELETE SET NULL,
+  UNIQUE (menu_item_id, label)
+);
 
----
+CREATE INDEX sub_menu_items_parent_seq_idx ON sub_menu_items(menu_item_id, sequence_index);
 
-## Database Schema Overview
+-- =========================================
+-- RBAC por cliente
+-- =========================================
+CREATE TABLE user_levels (
+  id          TEXT PRIMARY KEY,
+  company_id  TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (company_id, name)
+);
 
-### Users
-- id (UUID, PK)
-- email (unique)
-- password_hash
-- name
-- avatar_url
-- email_verified (boolean)
-- created_at
-- updated_at
+-- Usuarios <-> Niveles (N:M)
+CREATE TABLE users2_user_levels (
+  user_id       TEXT NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
+  user_level_id TEXT NOT NULL REFERENCES user_levels(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, user_level_id)
+);
 
-### Organizations
-- id (UUID, PK)
-- name
-- slug (unique)
-- owner_id (FK -> users)
-- created_at
-- updated_at
+-- Niveles <-> Vistas (tri-estado)
+CREATE TABLE user_levels2_views (
+  company_id    TEXT NOT NULL REFERENCES companies(id)  ON DELETE CASCADE,
+  user_level_id TEXT NOT NULL REFERENCES user_levels(id) ON DELETE CASCADE,
+  view_id       TEXT NOT NULL REFERENCES views(id)       ON DELETE CASCADE,
+  state         permission_state NOT NULL DEFAULT 'inherit', -- allow/deny/inherit
+  modifiable    BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (company_id, user_level_id, view_id)
+);
 
-### Organization Members
-- id (UUID, PK)
-- organization_id (FK)
-- user_id (FK)
-- role (enum: owner, admin, member)
-- created_at
+CREATE INDEX ulv_view_idx ON user_levels2_views(view_id);
 
-### Subscriptions
-- id (UUID, PK)
-- user_id (FK) or organization_id (FK)
-- plan_id (FK)
-- status (enum: active, canceled, past_due)
-- current_period_start
-- current_period_end
-- created_at
-- updated_at
+-- Niveles <-> Features (acciones extensibles + scope)
+CREATE TABLE user_levels2_features (
+  company_id    TEXT NOT NULL REFERENCES companies(id)  ON DELETE CASCADE,
+  user_level_id TEXT NOT NULL REFERENCES user_levels(id) ON DELETE CASCADE,
+  feature_id    TEXT NOT NULL REFERENCES features(id)     ON DELETE CASCADE,
+  action        TEXT NOT NULL,                             -- p.ej. 'Create','Update','Delete','Export','Approve',...
+  value         BOOLEAN NOT NULL DEFAULT FALSE,
+  scope         action_scope NOT NULL DEFAULT 'any',
+  modifiable    BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (company_id, user_level_id, feature_id, action)
+);
 
-### Plans
-- id (UUID, PK)
-- name
-- slug
-- price (decimal)
-- interval (enum: month, year)
-- features (JSON)
-- limits (JSON)
+CREATE INDEX ulf_feature_idx ON user_levels2_features(feature_id);
 
-### API Keys
-- id (UUID, PK)
-- user_id or organization_id (FK)
-- key_hash
-- name
-- scopes (JSON)
-- last_used_at
-- created_at
-- expires_at
+-- =========================================
+-- Pila de navegación (por sesión/pestaña)
+-- =========================================
+CREATE TABLE nav_trail (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,                         -- cookie por pestaña
+  depth      INT  NOT NULL,                         -- 0..N
+  view_id    TEXT NOT NULL REFERENCES views(id)     ON DELETE CASCADE,
+  url        TEXT NOT NULL,                         -- guarda solo path y query no sensible
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, company_id, session_id, depth)
+);
 
----
+CREATE INDEX nav_trail_session_idx ON nav_trail(user_id, session_id);
+CREATE INDEX nav_trail_view_idx    ON nav_trail(view_id);
 
-## Next Steps
+-- =========================================
+-- (Opcional) Permisos efectivos cacheados
+-- =========================================
+CREATE TABLE effective_view_perms (
+  user_id    TEXT NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  view_id    TEXT NOT NULL REFERENCES views(id)     ON DELETE CASCADE,
+  allowed    BOOLEAN NOT NULL,
+  computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, company_id, view_id)
+);
 
-Start with **Phase 1: User Authentication & Authorization** to build the foundation for all other features.
+CREATE TABLE effective_feature_perms (
+  user_id     TEXT NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  company_id  TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  feature_id  TEXT NOT NULL REFERENCES features(id)  ON DELETE CASCADE,
+  action      TEXT NOT NULL,
+  value       BOOLEAN NOT NULL,
+  scope       action_scope NOT NULL DEFAULT 'any',
+  computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, company_id, feature_id, action)
+);
+
+-- =========================================
+-- Reglas de integridad sugeridas (triggers opcionales)
+-- =========================================
+-- 1) Alinear company_id entre user_levels2_* y su user_level (mismo tenant).
+--    Puedes implementar triggers que validen que user_levels2_views.company_id = (SELECT company_id FROM user_levels WHERE id=user_level_id)
+-- 2) Limitar longitud de nav_trail por sesión (p.ej., 30 niveles) mediante trigger.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Superadmin (vendorsify) views
+Views Manager – create/update/delete entries in views.
+Modules Manager – create/update/delete entries in Modules.
+Module ↔ View Mapping – manage relations between Modules and Views.
+Company ↔ Module Assignment – manage which Modules each Company has.
+Features Manager – create/update/delete entries in features.
+Menu Items Manager – manage menuItems tied to featureId.
+Sub-menu Items Manager – manage subMenuItems tied to menuItemId/featureId.
+Client Admin (per company) views
+User Levels Manager – create/update/delete userLevels.
+User Level ↔ Features Matrix – toggle Create/Update/Delete per featureId (userLevels2Features).
+User Level ↔ Views Matrix – toggle access per viewId (userLevels2Views)
+User ↔ User Levels Assignment – assign users to one or more userLevels.
+
+
+
+
+1) Views Manager
+GET /sa/views — list (paginate/filter).
+POST /sa/views — create { id?, name, url }.
+GET /sa/views/:viewId — read.
+PATCH /sa/views/:viewId — update { name?, url? }.
+DELETE /sa/views/:viewId — delete.
+2) Modules Manager
+GET /sa/modules
+POST /sa/modules — create { id?, name, code }.
+GET /sa/modules/:moduleId
+PATCH /sa/modules/:moduleId
+DELETE /sa/modules/:moduleId
+
+
+
+
+3) Module ↔ View Mapping
+GET /sa/modules/:moduleId/views — views in module.
+PUT /sa/modules/:moduleId/views — replace set { viewIds: string[] }.
+POST /sa/modules/:moduleId/views/:viewId — add one.
+DELETE /sa/modules/:moduleId/views/:viewId — remove one.
+
+
+4) Company ↔ Module Assignment
+GET /sa/companies/:companyId/modules
+PUT /sa/companies/:companyId/modules — replace set { moduleIds: string[] }.
+POST /sa/companies/:companyId/modules/:moduleId
+DELETE /sa/companies/:companyId/modules/:moduleId
+
+
+5) Features Manager
+GET /sa/features
+POST /sa/features — { id?, name, url }
+GET /sa/features/:featureId
+PATCH /sa/features/:featureId
+DELETE /sa/features/:featureId
+
+
+6) Menu Items Manager (optional)
+GET /sa/menu-items
+POST /sa/menu-items — { id?, featureId, sequenceIndex, label }
+GET /sa/menu-items/:menuItemId
+PATCH /sa/menu-items/:menuItemId
+DELETE /sa/menu-items/:menuItemId
+
+
+
+
+
+7) Sub-menu Items Manager (optional)
+GET /sa/sub-menu-items
+POST /sa/sub-menu-items — { id?, menuItemId, featureId, sequenceIndex, label }
+GET /sa/sub-menu-items/:subMenuItemId
+PATCH /sa/sub-menu-items/:subMenuItemId
+DELETE /sa/sub-menu-items/:subMenuItemId
+
+
+
+Client Admin (per company)
+All these should be tenant-scoped (derive companyId from auth or path).
+8) User Levels Manager
+GET /client/user-levels
+POST /client/user-levels — { id?, name, description }
+GET /client/user-levels/:userLevelId
+PATCH /client/user-levels/:userLevelId
+DELETE /client/user-levels/:userLevelId
+
+
+9) User Level ↔ Features Matrix (userLevels2Features)
+GET /client/user-levels/:userLevelId/features — list matrix.
+PUT /client/user-levels/:userLevelId/features — replace array:
+ [{ "featureId":"...", "type":"Create|Update|Delete", "value":true, "modifiable":true }]
+PATCH /client/user-levels/:userLevelId/features/:featureId — partial update (optionally with type in body).
+
+
+
+
+10) User Level ↔ Views Matrix (userLevels2Views)
+GET /client/user-levels/:userLevelId/views
+PUT /client/user-levels/:userLevelId/views — replace array:
+ [{ "viewId":"...", "value":true, "modifiable":true }]
+PATCH /client/user-levels/:userLevelId/views/:viewId — { value?, modifiable? }
+
+
+11) User ↔ User Levels Assignment
+GET /client/users/:userId/user-levels
+PUT /client/users/:userId/user-levels — { userLevelIds: string[] }
+POST /client/users/:userId/user-levels/:userLevelId
+DELETE /client/users/:userId/user-levels/:userLevelId
+
+
+
+
+
+
+
+
+Implementation plan (whole solution)
+Phase 0 — Readiness & flags
+Create a feature flag: iam_v2_enabled (tenant-scoped).
+
+
+Decide default policy: “deny by default unless explicitly allowed”.
+
+
+Phase 1 — Data model & migrations
+Add/verify tables: user_levels, users2_user_levels, user_levels2_views(state: allow/deny/inherit), user_levels2_features(action, value, scope), features2_views, modules2_views, companies2_modules, menu_items, sub_menu_items, nav_trail, audit_log (optional), user_favorites (optional).
+
+
+Indexes/constraints (FKs, UNIQUE composites) per earlier schema.
+
+
+Backfill scripts for existing data (map legacy roles → user_levels; assign users).
+
+
+Phase 2 — Seed & admin bootstrapping
+Seed baseline Features, Views, Modules (+ mappings).
+
+
+Seed default User Levels per tenant (e.g., Admin, Member, Visitor).
+
+
+Seed menu per tenant (or global default).
+
+
+Phase 3 — Core permission engine
+Build permission resolution (effective allow for views; feature action+scope merge across multiple levels; deny > allow > inherit).
+
+
+Build authorize() middleware for API routes (view access, feature action).
+
+
+Add module gating (company owns module?).
+
+
+Phase 4 — APIs (CRUD & matrices)
+Superadmin: Views, Modules, Features, Mappings (modules↔views, features↔views), Company↔Modules.
+
+
+Client admin: User Levels CRUD; Level↔Views matrix; Level↔Features matrix; Users↔Levels.
+
+
+Read APIs: /api/navigation (tenant/menu/permission-filtered), /api/iam/permissions/current.
+
+
+Navigation trail: /api/navtrail/track, /api/navtrail (trail/top/recents).
+
+
+Phase 5 — Frontend integration
+Replace hardcoded sidebar with /api/navigation.
+
+
+Add global Permissions store/hook; Gate/GateButton components; route guards.
+
+
+Client Admin UI:
+ User Levels Manager, Level↔Views matrix, Level↔Features matrix, User↔Levels assignment.
+
+
+Navigation UX: Breadcrumbs + “Continue where I left off” + Recents; Back button via nav_trail.
+
+
+Phase 6 — Security, caching, performance
+Enforce auth + tenant everywhere.
+
+
+ETag/short TTL for /api/navigation; cache effective perms (optional).
+
+
+Audit log writes for IAM edits and sensitive actions (exports, trials).
+
+
+Phase 7 — Testing
+Unit tests: resolver, middleware, SQL scopes.
+
+
+Integration: endpoint auth paths (200/403).
+
+
+E2E happy paths for 2–3 roles across 2 tenants.
+
+
+Phase 8 — Rollout
+Dark-launch behind iam_v2_enabled for internal tenant.
+
+
+Expand to a pilot tenant; monitor logs; fix.
+
+
+Enable broadly; remove old guards.
+
+
