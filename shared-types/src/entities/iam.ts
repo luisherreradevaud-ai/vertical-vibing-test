@@ -64,6 +64,10 @@ export const ViewSchema = z.object({
   id: z.string(),
   name: z.string(),
   url: z.string(), // Internal route path
+  category: z.string().optional(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  requiresAuth: z.boolean().default(true),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -79,9 +83,12 @@ export type View = z.infer<typeof ViewSchema>;
  */
 export const ModuleSchema = z.object({
   id: z.string(),
-  name: z.string(),
   code: z.string(), // Unique code (e.g., "risks", "compliance")
+  name: z.string(),
   description: z.string().optional(),
+  icon: z.string().optional(),
+  enabled: z.boolean().default(true),
+  priority: z.string().default('standard'), // 'standard' | 'optional' | 'premium'
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -106,9 +113,13 @@ export type ModuleWithViews = z.infer<typeof ModuleWithViewsSchema>;
  */
 export const FeatureSchema = z.object({
   id: z.string(),
-  name: z.string(),
   key: z.string().optional(), // Stable key (e.g., "risks.edit")
+  name: z.string(),
   description: z.string().optional(),
+  resourceType: z.string().optional(), // e.g., 'users', 'companies'
+  actions: z.array(z.string()).optional(), // Supported actions
+  category: z.string().optional(),
+  enabled: z.boolean().default(true),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -136,6 +147,7 @@ export const UserLevelSchema = z.object({
   companyId: z.string(),
   name: z.string(),
   description: z.string().optional(),
+  isDefault: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -150,11 +162,14 @@ export type UserLevel = z.infer<typeof UserLevelSchema>;
  * User Level to View permission
  */
 export const UserLevelViewPermissionSchema = z.object({
+  id: z.string(),
   companyId: z.string(),
   userLevelId: z.string(),
   viewId: z.string(),
   state: PermissionStateSchema,
   modifiable: z.boolean().default(true),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
 });
 
 export type UserLevelViewPermission = z.infer<typeof UserLevelViewPermissionSchema>;
@@ -163,6 +178,7 @@ export type UserLevelViewPermission = z.infer<typeof UserLevelViewPermissionSche
  * User Level to Feature permission (with action and scope)
  */
 export const UserLevelFeaturePermissionSchema = z.object({
+  id: z.string(),
   companyId: z.string(),
   userLevelId: z.string(),
   featureId: z.string(),
@@ -170,6 +186,8 @@ export const UserLevelFeaturePermissionSchema = z.object({
   value: z.boolean(),
   scope: ActionScopeSchema.default('any'),
   modifiable: z.boolean().default(true),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
 });
 
 export type UserLevelFeaturePermission = z.infer<typeof UserLevelFeaturePermissionSchema>;
@@ -195,11 +213,15 @@ export const MenuItemSchema = z.object({
   id: z.string(),
   companyId: z.string().nullable(), // null = global/default menu
   label: z.string(),
-  sequenceIndex: z.number().default(0),
-  viewId: z.string().nullable(),
-  featureId: z.string().nullable(),
-  isEntrypoint: z.boolean().default(true),
   icon: z.string().optional(),
+  priority: z.string().default('standard'), // 'standard' | 'optional' | 'premium'
+  requiredPermissions: z.array(z.string()).optional(), // JSON array
+  sortOrder: z.string().optional(),
+  viewId: z.string().optional(), // Optional direct link to a view
+  featureId: z.string().optional(), // Optional feature for permission checking
+  isEntrypoint: z.boolean().default(true), // Whether to show in navigation
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
 });
 
 export type MenuItem = z.infer<typeof MenuItemSchema>;
@@ -209,12 +231,15 @@ export type MenuItem = z.infer<typeof MenuItemSchema>;
  */
 export const SubMenuItemSchema = z.object({
   id: z.string(),
-  companyId: z.string().nullable(),
   menuItemId: z.string(),
   label: z.string(),
-  sequenceIndex: z.number().default(0),
   viewId: z.string().nullable(),
-  featureId: z.string().nullable(),
+  featureId: z.string().optional(), // Optional feature for permission checking
+  icon: z.string().optional(),
+  sortOrder: z.string().optional(),
+  enabled: z.boolean().default(true),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
 });
 
 export type SubMenuItem = z.infer<typeof SubMenuItemSchema>;
@@ -238,11 +263,11 @@ export type MenuItemWithSubItems = z.infer<typeof MenuItemWithSubItemsSchema>;
 export const NavTrailEntrySchema = z.object({
   id: z.string(),
   userId: z.string(),
-  companyId: z.string(),
   sessionId: z.string(), // Cookie per browser tab
-  depth: z.number(), // 0..N
-  viewId: z.string(),
+  viewId: z.string().optional(),
   url: z.string(), // Path and safe query params
+  label: z.string(),
+  depth: z.string(), // 0..N
   createdAt: z.string().datetime(),
 });
 
@@ -256,11 +281,13 @@ export type NavTrailEntry = z.infer<typeof NavTrailEntrySchema>;
  * Effective View Permission - Computed permission for a user
  */
 export const EffectiveViewPermissionSchema = z.object({
+  id: z.string(),
   userId: z.string(),
   companyId: z.string(),
   viewId: z.string(),
-  allowed: z.boolean(),
+  hasAccess: z.boolean(),
   computedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
 });
 
 export type EffectiveViewPermission = z.infer<typeof EffectiveViewPermissionSchema>;
@@ -269,13 +296,15 @@ export type EffectiveViewPermission = z.infer<typeof EffectiveViewPermissionSche
  * Effective Feature Permission - Computed permission for a user
  */
 export const EffectiveFeaturePermissionSchema = z.object({
+  id: z.string(),
   userId: z.string(),
   companyId: z.string(),
   featureId: z.string(),
   action: z.string(),
-  value: z.boolean(),
-  scope: ActionScopeSchema,
+  allowed: z.boolean(),
+  scope: z.string(),
   computedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
 });
 
 export type EffectiveFeaturePermission = z.infer<typeof EffectiveFeaturePermissionSchema>;

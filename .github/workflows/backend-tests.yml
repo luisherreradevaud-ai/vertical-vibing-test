@@ -58,6 +58,7 @@ jobs:
         CI: true
 
     - name: Upload coverage reports
+      continue-on-error: true
       uses: codecov/codecov-action@v4
       with:
         file: ./repos/backend/coverage/coverage-final.json
