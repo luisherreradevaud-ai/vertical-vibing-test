@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { User, PublicUser } from '../entities/user';
+import type { PublicUser } from '../entities/user';
 
 /**
  * Register DTO
@@ -70,6 +70,7 @@ export type ChangePasswordDTO = z.infer<typeof changePasswordSchema>;
 export interface JWTPayload {
   userId: string;
   email: string;
+  authProvider: 'inhouse' | 'cognito' | 'clerk';
   iat?: number;
   exp?: number;
 }
