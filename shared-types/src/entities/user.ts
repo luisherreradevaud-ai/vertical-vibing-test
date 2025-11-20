@@ -22,6 +22,7 @@ export const userSchema = z.object({
   authProvider: authProviderSchema.default('inhouse'),
   externalId: z.string().nullable(),
   externalMetadata: z.record(z.any()).nullable(),
+  isSuperAdmin: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

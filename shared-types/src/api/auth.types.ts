@@ -71,6 +71,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   authProvider: 'inhouse' | 'cognito' | 'clerk';
+  isSuperAdmin?: boolean; // Super admin with full access (dev/staging only)
   iat?: number;
   exp?: number;
 }
