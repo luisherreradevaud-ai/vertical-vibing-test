@@ -16,8 +16,12 @@ vertical-vibing/
 ├── repos/
 │   ├── backend/          # Express backend (VSA architecture)
 │   └── frontend/         # Next.js 14+ frontend (App Router)
+├── infrastructure/       # Infrastructure as Code (Terraform + AWS)
+│   ├── terraform/        # Terraform modules and environments
+│   ├── scripts/          # Infrastructure automation scripts
+│   └── docs/             # Infrastructure documentation
 ├── scripts/              # Development automation
-└── .ai-context/          # Global AI context files
+└── .ai-context/          # Global AI context files (includes infrastructure guides)
 ```
 
 ## Development Commands
@@ -57,6 +61,21 @@ cd repos/backend
 npm run db:generate       # Generate migrations from schema changes
 npm run db:migrate        # Apply migrations to database
 npm run db:studio         # Open Drizzle Studio GUI
+```
+
+### Infrastructure Management
+```bash
+# Plan infrastructure changes
+./infrastructure/scripts/infra-plan.sh dev
+
+# Deploy infrastructure
+./infrastructure/scripts/infra-deploy.sh dev
+
+# View infrastructure outputs
+./infrastructure/scripts/infra-outputs.sh dev
+
+# Destroy infrastructure (dev/staging only)
+./infrastructure/scripts/infra-destroy.sh dev
 ```
 
 ## Architecture
@@ -140,6 +159,35 @@ import { type User } from '@vertical-vibing/shared-types';
 
 **Important:** When types change, the watcher auto-rebuilds. Restart dev servers if needed.
 
+### Infrastructure (Terraform + AWS)
+
+Location: `infrastructure/`
+
+**Purpose:** Cloud infrastructure for features requiring AWS services (S3, Lambda, SES, etc.)
+
+**Structure:**
+```
+infrastructure/
+├── terraform/
+│   ├── modules/              # Reusable modules (s3-bucket, lambda, cdn, etc.)
+│   ├── features/             # Feature-specific infrastructure
+│   └── environments/         # Environment configs (dev, staging, production)
+├── scripts/                  # Automation scripts
+└── docs/                     # Infrastructure documentation
+```
+
+**When to use:**
+- File uploads (S3)
+- Image/video processing (Lambda)
+- Background jobs (SQS + Lambda)
+- Email sending (SES)
+- Real-time features (WebSocket/AppSync)
+- Content delivery (CloudFront)
+
+**Integration:** Infrastructure outputs become backend environment variables.
+
+See `.ai-context/INFRASTRUCTURE-DECISION-TREE.md` for automatic feature→infrastructure mapping.
+
 ## Key Architectural Patterns
 
 ### Type Safety Across the Stack
@@ -205,6 +253,52 @@ See `.ai-context/` for detailed IAM documentation.
 
 ### Creating a Full-Stack Feature
 
+**IMPORTANT:** Before starting, AI agents MUST read `.ai-context/INFRASTRUCTURE-DECISION-TREE.md` to determine if infrastructure is needed.
+
+#### With Infrastructure (e.g., file uploads, image processing)
+
+1. **Create Infrastructure** (in `infrastructure/`)
+   ```bash
+   # Create feature infrastructure
+   mkdir -p infrastructure/terraform/features/my-feature
+   # Define Terraform modules
+   # Deploy to dev
+   ./infrastructure/scripts/infra-deploy.sh dev
+   ```
+
+2. **Define Shared Types** (in `shared-types/`)
+   ```bash
+   # Create types (including infrastructure-related types)
+   cd shared-types
+   npm run build
+   ```
+
+3. **Build Backend Feature** (in `repos/backend/`)
+   ```bash
+   cd repos/backend
+   # Create feature in src/features/my-feature/
+   # Integrate with infrastructure via AWS SDK
+   # Import types from @vertical-vibing/shared-types
+   # Add infrastructure outputs to .env
+   ```
+
+4. **Build Frontend Feature** (in `repos/frontend/`)
+   ```bash
+   cd repos/frontend
+   # Create feature in src/features/my-feature/
+   # Use infrastructure-aware backend endpoints
+   # Import types from @vertical-vibing/shared-types
+   ```
+
+5. **Test Integration**
+   ```bash
+   # From root
+   ./scripts/dev.sh
+   # Test end-to-end with real infrastructure
+   ```
+
+#### Without Infrastructure (e.g., CRUD operations, business logic)
+
 1. **Define Shared Types** (in `shared-types/`)
    ```bash
    # Create types in shared-types/src/
@@ -262,6 +356,8 @@ When working on features, read these files for architectural guidance:
 - `FULLSTACK-ARCHITECTURE.md` - Overall architecture
 - `AI-COORDINATION-GUIDE.md` - Multi-repo workflow
 - `FULLSTACK-FEATURE-WORKFLOW.md` - Feature development guide
+- `INFRASTRUCTURE-DECISION-TREE.md` - **READ FIRST** for every feature to determine infrastructure needs
+- `INFRASTRUCTURE.md` - Infrastructure implementation patterns
 
 **Backend Context** (`repos/backend/.ai-context/`):
 - `ARCHITECTURE.md` - VSA patterns and conventions
@@ -313,6 +409,11 @@ When working on features, read these files for architectural guidance:
 PORT=3000
 DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 JWT_SECRET=your-secret-key
+
+# AWS Infrastructure (if feature requires it)
+AWS_REGION=us-east-1
+UPLOADS_BUCKET_NAME=vertical-vibing-uploads-dev
+UPLOADS_CDN_DOMAIN=d123456789.cloudfront.net
 ```
 
 ### Frontend (`.env.local`)
@@ -375,9 +476,16 @@ Backend uses port 3000, frontend uses port 3001. Change in package.json scripts 
 
 ## Production Deployment
 
+### Infrastructure
+```bash
+# Deploy infrastructure first
+./infrastructure/scripts/infra-deploy.sh production
+```
+
 ### Backend
 ```bash
 cd repos/backend
+# Update .env with production infrastructure outputs
 npm run build
 npm start
 ```
@@ -390,3 +498,23 @@ npm start
 ```
 
 Both apps are stateless and can be horizontally scaled. Ensure environment variables are properly configured for production.
+
+## AI Agent Workflow
+
+When implementing a feature, AI agents MUST follow this sequence:
+
+1. **Read `.ai-context/INFRASTRUCTURE-DECISION-TREE.md`** to determine if infrastructure is needed
+2. If infrastructure needed:
+   - Create infrastructure in `infrastructure/terraform/features/`
+   - Deploy infrastructure
+   - Document outputs as environment variables
+3. Define shared types in `shared-types/`
+4. Build backend feature (with infrastructure integration if needed)
+5. Build frontend feature
+6. Test end-to-end
+
+**Key Files for AI:**
+- `.ai-context/INFRASTRUCTURE-DECISION-TREE.md` - Automatic infrastructure detection
+- `.ai-context/INFRASTRUCTURE.md` - Infrastructure implementation guide
+- `.ai-context/FULLSTACK-ARCHITECTURE.md` - Overall architecture
+- `.ai-context/FULLSTACK-FEATURE-WORKFLOW.md` - Feature development workflow
