@@ -1,0 +1,61 @@
+# Example Terraform Variables for Email Infrastructure
+# Copy this file to terraform.tfvars and customize for your environment
+
+# General Configuration
+project_name = "vertical-vibing"
+environment  = "dev" # dev, staging, or production
+
+# SES Configuration
+domain             = "example.com"
+mail_from_domain   = "mail.example.com"
+default_from_email = "noreply@example.com"
+
+# Route53 DNS Configuration
+create_route53_records = false # Set to true if domain is managed in Route53
+route53_zone_id        = null  # "Z1234567890ABC" if using Route53
+
+# Lambda Configuration
+lambda_deployment_package_path = "../../../repos/backend/dist/lambda.zip"
+lambda_source_code_hash        = null # Will be computed from ZIP file
+lambda_handler                 = "dist/lambda/email-queue-processor.handler"
+lambda_runtime                 = "nodejs20.x"
+
+# Database Configuration
+database_url = "postgresql://user:password@localhost:5432/dbname"
+
+# VPC Configuration (if Lambda needs database access in VPC)
+enable_lambda_vpc_access = false
+lambda_vpc_config = null
+# lambda_vpc_config = {
+#   subnet_ids         = ["subnet-abc123", "subnet-def456"]
+#   security_group_ids = ["sg-abc123"]
+# }
+
+# Encryption Configuration
+kms_key_id  = null # Use AWS managed key
+kms_key_arn = null
+
+# Secrets Manager (optional)
+enable_secrets_manager_access = false
+secrets_manager_arns          = []
+
+# Backend Role (optional - for direct SQS access from backend)
+create_backend_role = false
+
+# Monitoring Configuration
+alarm_sns_topic_arns = [] # ["arn:aws:sns:us-east-1:123456789012:alerts"]
+log_retention_days   = 14
+log_level            = "info"
+
+# Additional Lambda Environment Variables
+additional_lambda_env_vars = {
+  # Add any custom environment variables here
+  # CUSTOM_VAR = "value"
+}
+
+# Tags
+tags = {
+  Team       = "Engineering"
+  CostCenter = "Product"
+  Terraform  = "true"
+}
